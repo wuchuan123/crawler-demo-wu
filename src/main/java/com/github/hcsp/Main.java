@@ -11,33 +11,53 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 import java.io.IOException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
-        List<String> linkPool = new ArrayList<>();
-        Set<String> processedLinks = new HashSet<>();
-        linkPool.add("https://sina.cn");
-        while (true) {
-            if (linkPool.isEmpty()) {
-                break;
-            }
-            String link = linkPool.remove(linkPool.size() - 1);
-            if (processedLinks.contains(link)) {
-                continue;
-            }
-            if (isInterestingLink(link)) {
-                Document doc = httpGetAndParseHtml(link);
-                doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
-                storeIntoDatabaseIfItIsNewsPage(doc);
-                processedLinks.add(link);
-            } else {
+    public static void main(String[] args) throws IOException, SQLException {
+        Connection connection = DriverManager.getConnection("jdbc:h2:file:E:/饥人谷java/crawler-demo-wu/news","root","root");
 
+        List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+//        new HashSet 把可以把数据类型数据转成Set
+        Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
+        linkPool.add("https://sina.cn");
+        try {
+            while (true) {
+                if (linkPool.isEmpty()) {
+                    break;
+                }
+                String link = linkPool.remove(linkPool.size() - 1);
+                if (processedLinks.contains(link)) {
+                    continue;
+                }
+                if (isInterestingLink(link)) {
+                    Document doc = httpGetAndParseHtml(link);
+                    doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
+                    storeIntoDatabaseIfItIsNewsPage(doc);
+                    processedLinks.add(link);
+                } else {
+
+                }
+            }
+        } finally {
+            System.out.println("Exit");
+        }
+    }
+
+    private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
+//        "select link from LINKS_TO_BE_PROCESSED"
+        List<String> results = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                results.add(resultSet.getString(1));
             }
         }
+        return results;
     }
 
     private static Document httpGetAndParseHtml(String link) throws IOException {
