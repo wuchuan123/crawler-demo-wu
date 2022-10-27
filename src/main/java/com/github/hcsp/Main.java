@@ -13,43 +13,58 @@ import org.jsoup.nodes.Element;
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class Main {
     public static void main(String[] args) throws IOException, SQLException {
-        Connection connection = DriverManager.getConnection("jdbc:h2:file:E:/饥人谷java/crawler-demo-wu/news","root","root");
-
-        List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+        Connection connection = DriverManager.getConnection("jdbc:h2:file:E:/饥人谷java/crawler-demo-wu/news", "root", "root");
+        while (true) {
+            List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
 //        new HashSet 把可以把数据类型数据转成Set
-        Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
-        linkPool.add("https://sina.cn");
-        try {
-            while (true) {
-                if (linkPool.isEmpty()) {
-                    break;
-                }
-                String link = linkPool.remove(linkPool.size() - 1);
-                if (processedLinks.contains(link)) {
-                    continue;
-                }
-                if (isInterestingLink(link)) {
-                    Document doc = httpGetAndParseHtml(link);
-                    doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
-                    storeIntoDatabaseIfItIsNewsPage(doc);
-                    processedLinks.add(link);
-                } else {
+//            Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
+            if (linkPool.isEmpty()) {
+                break;
+            }
+            String link = linkPool.remove(linkPool.size() - 1);
+            try (PreparedStatement statement = connection.prepareStatement("DELETE FROM LINKS_TO_BE_PROCESSED where link = ?")) {
+                statement.setString(1, link);
+                statement.executeUpdate();
+            }
 
+            boolean flag = false;
+            try (PreparedStatement statement = connection.prepareStatement("SELECT LINK from LINKS_ALREADY_PROCESSED where link = ?")) {
+                statement.setString(1, link);
+                ResultSet resultSet = statement.executeQuery();
+                while (resultSet.next()) {
+                    flag = true;
                 }
             }
-        } finally {
-            System.out.println("Exit");
+            if (flag) {
+                continue;
+            }
+
+            if (isInterestingLink(link)) {
+                Document doc = httpGetAndParseHtml(link);
+                for (Element aTag : doc.select("a")) {
+                    String href = aTag.attr("href");
+                    try (PreparedStatement statement = connection.prepareStatement("INSERT INTO LINKS_TO_BE_PROCESSED (link) values (?)")) {
+                        statement.setString(1, href);
+                        statement.executeUpdate();
+                    }
+                }
+                storeIntoDatabaseIfItIsNewsPage(doc);
+
+                try (PreparedStatement statement = connection.prepareStatement("INSERT INTO LINKS_ALREADY_PROCESSED (link) values (?)")) {
+                    statement.setString(1, link);
+                    statement.executeUpdate();
+                }
+            } else {
+
+            }
         }
     }
 
     private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
-//        "select link from LINKS_TO_BE_PROCESSED"
         List<String> results = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             ResultSet resultSet = statement.executeQuery();
