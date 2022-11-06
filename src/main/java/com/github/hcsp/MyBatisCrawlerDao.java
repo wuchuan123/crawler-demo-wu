@@ -14,15 +14,19 @@ import java.util.Map;
 public class MyBatisCrawlerDao implements CrawlerDao {
     private SqlSessionFactory sqlSessionFactory;
 
-    public MyBatisCrawlerDao() throws IOException {
-        String resource = "db/mybatis/config.xml";
-        InputStream inputStream = Resources.getResourceAsStream(resource);
-        sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+    public MyBatisCrawlerDao() {
+        try {
+            String resource = "db/mybatis/config.xml";
+            InputStream inputStream = Resources.getResourceAsStream(resource);
+            sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
     @Override
-    public String getNextLinkThenDelete() throws SQLException {
+    public synchronized String getNextLinkThenDelete() throws SQLException {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
             String url = session.selectOne("com.github.hcsp.MyMapper.selectNextAvailableLink");
             if (url != null) {

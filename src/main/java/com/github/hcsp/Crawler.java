@@ -1,6 +1,5 @@
 package com.github.hcsp;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -16,42 +15,41 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-public class Crawler {
-   private CrawlerDao dao = new MyBatisCrawlerDao();
+public class Crawler extends Thread {
+    private CrawlerDao dao;
 
-    public Crawler() throws IOException {
+    public Crawler(CrawlerDao dao) {
+        this.dao = dao;
     }
 
-    public void run() throws SQLException, IOException {
-        String link;
-        while ((link = dao.getNextLinkThenDelete()) != null) {
 
-//        new HashSet 把可以把数据类型数据转成Set
+    @Override
+    public void run() {
+        try {
+            String link;
+            while ((link = dao.getNextLinkThenDelete()) != null) {
+                if (dao.isLinkProcessed(link)) {
+                    continue;
+                }
+
+                if (isInterestingLink(link)) {
+                    System.out.println(link);
+
+                    Document doc = httpGetAndParseHtml(link);
+                    parseUrlsFromPageAndStoreIntoDatabase(doc);
 
 
-            if (dao.isLinkProcessed(link)) {
-                continue;
-            }
+                    storeIntoDatabaseIfItIsNewsPage(doc, link);
 
-            if (isInterestingLink(link)) {
-                System.out.println(link);
-
-                Document doc = httpGetAndParseHtml(link);
-                parseUrlsFromPageAndStoreIntoDatabase(doc);
-
-
-                storeIntoDatabaseIfItIsNewsPage(doc, link);
-
-                dao.insertProcessedLink(link);
+                    dao.insertProcessedLink(link);
 //                dao.updateDatabase(link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values (?)");
+                }
             }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
-    public static void main(String[] args) throws IOException, SQLException {
-        new Crawler().run();
-    }
 
 
     private void parseUrlsFromPageAndStoreIntoDatabase(Document doc) throws SQLException {

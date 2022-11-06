@@ -95,6 +95,11 @@
             <artifactId>mybatis</artifactId>
             <version>3.5.2</version>
         </dependency>
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-high-level-client</artifactId>
+            <version>7.4.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -131,6 +136,7 @@
                         <artifactId>checkstyle</artifactId>
                         <version>8.29</version>
                     </dependency>
+
                 </dependencies>
             </plugin>
             <plugin>
@@ -160,7 +166,7 @@
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>7.0.4</version>
                 <configuration>
-                    <url>jdbc:mysql://localhost:3306/news?useSSL=false</url>
+                    <url>jdbc:mysql://localhost:3306/news?useSSL=false&amp;characterEncoding=UTF-8</url>
                     <user>root</user>
                     <password>root</password>
                 </configuration>
